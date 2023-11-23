@@ -25,7 +25,7 @@ class CompRequest(FipaRequestProtocol):
 
     def handle_request(self, message):
         super(CompRequest, self).handle_request(message)
-        display_message(self.agent.aid.localname, 'request message received')
+        display_message(self.agent.aid.localname, message.content)
         now = datetime.now()
         reply = message.create_reply()
         reply.set_performative(ACLMessage.INFORM)
@@ -42,7 +42,7 @@ class CompRequest2(FipaRequestProtocol):
                                            is_initiator=True)
 
     def handle_inform(self, message):
-        display_message(self.agent.aid.localname, message.content)
+        display_message(self.agent.aid.localname, self.agent.color)
 
 
 class ComportTemporal(TimedBehaviour):
@@ -53,6 +53,7 @@ class ComportTemporal(TimedBehaviour):
 
     def on_time(self):
         super(ComportTemporal, self).on_time()
+        self.message.set_content(self.agent.speed)
         self.agent.send(self.message)
 
 class TimeAgent(Agent):
@@ -77,7 +78,7 @@ class ClockAgent(Agent):
         message.set_content('time')
 
         self.comport_request = CompRequest2(self, message)
-        self.comport_temp = ComportTemporal(self, 8.0, message)
+        self.comport_temp = ComportTemporal(self, .2, message)
 
         self.behaviours.append(self.comport_request)
         self.behaviours.append(self.comport_temp)
@@ -108,10 +109,10 @@ class YourTimedBehaviour(TimedBehaviour):
         Global.x_center += 3
 
 class ClientAgent(Agent):
-    def __init__(self,aid,coords):
-        super(ClientAgent, self).__init__(aid=aid, debug=False)
-        self.x = coords[0]
-        self.y = coords[1]
+    def __init__(self,aid,time_agent_name,coords):
+        super(ClientAgent, self).__init__(aid=aid)
+        # self.x = coords[0]
+        # self.y = coords[1]
         self.color = QColor(random.randint(0, 0xffffff))
         self.size = random.randint(5, 30)
         self.speed = 10 * 25 / self.size
@@ -123,7 +124,16 @@ class ClientAgent(Agent):
         self.deliveryTime = None
         self.comport_request = CompRequest(self)
         self.behaviours.append(self.comport_request)
+        message = ACLMessage(ACLMessage.REQUEST)
+        message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
+        message.add_receiver(AID(name=time_agent_name))
+        message.set_content('time')
 
+        self.comport_request = CompRequest2(self, message)
+        self.comport_temp = ComportTemporal(self, 0.2, message)
+
+        self.behaviours.append(self.comport_request)
+        self.behaviours.append(self.comport_temp)
 
 
 
@@ -153,43 +163,43 @@ class ClientAgent(Agent):
 
 
 
-class HostAgent(Agent):
-    gui = None
-    client=None
-    houses_coordenates = [
-        [400,80],
-        [530,90],
-        [190,380],
-        [58,530],
-        [130,670],
-        [490,700],
-        [410,480],
-        [1150,910]
-    ]
+# class HostAgent(Agent):
+#     gui = None
+#     client=None
+#     houses_coordenates = [
+#         [400,80],
+#         [530,90],
+#         [190,380],
+#         [58,530],
+#         [130,670],
+#         [490,700],
+#         [410,480],
+#         [1150,910]
+#     ]
     
-    enabled = False
+#     enabled = False
 
-    def __init__(self, aid,c,port):
-        super(HostAgent, 
-              self).__init__(aid=aid, debug=False)
-        Global.x_center = 0
-        client_agent_name = 'client_agent_{}@localhost:{}'.format(port-10000, port-10000)
-        self.client = ClientAgent(AID(name=client_agent_name),self.houses_coordenates[c])
-        mytimed = MyTimedBehaviour(self, .2)
-        yourtimed = YourTimedBehaviour(self, 2)
-        self.behaviours.append(mytimed)
-        self.behaviours.append(yourtimed)
-        print(client_agent_name)
-        message = ACLMessage(ACLMessage.REQUEST)
-        message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
-        message.add_receiver(AID(name=client_agent_name))
-        message.set_content('time')
+#     def __init__(self, aid,c,port):
+#         super(HostAgent, 
+#               self).__init__(aid=aid, debug=False)
+#         Global.x_center = 0
+#         client_agent_name = 'client_agent_{}@localhost:{}'.format(port-10000, port-10000)
+#         self.client = ClientAgent(AID(name=client_agent_name),self.houses_coordenates[c])
+#         mytimed = MyTimedBehaviour(self, .2)
+#         yourtimed = YourTimedBehaviour(self, 2)
+#         self.behaviours.append(mytimed)
+#         self.behaviours.append(yourtimed)
+#         print(client_agent_name)
+#         message = ACLMessage(ACLMessage.REQUEST)
+#         message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
+#         message.add_receiver(AID(name=client_agent_name))
+#         message.set_content('time')
 
-        self.comport_request = CompRequest2(self, message)
-        self.comport_temp = ComportTemporal(self, 8.0, message)
+#         self.comport_request = CompRequest2(self, message)
+#         self.comport_temp = ComportTemporal(self, 8.0, message)
 
-        self.behaviours.append(self.comport_request)
-        self.behaviours.append(self.comport_temp)
+#         self.behaviours.append(self.comport_request)
+#         self.behaviours.append(self.comport_temp)
 
 
 
@@ -200,18 +210,31 @@ if __name__ == '__main__':
     agents = list()
 
     c=0
-    for i in range(8):
+    # for i in range(8):
+    #     port = int(sys.argv[1]) + c
+    #     host_agent_name = 'host_agent_{}@localhost:{}'.format(port, port)
+    #     host_agent = HostAgent(AID(name=host_agent_name),c,port)
+    #     agents.append(host_agent)
+    #     c += 1
+
+    for i in range(1):
         port = int(sys.argv[1]) + c
-        host_agent_name = 'host_agent_{}@localhost:{}'.format(port, port)
-        host_agent = HostAgent(AID(name=host_agent_name),c,port)
-        agents.append(host_agent)
-        c += 1
+        time_agent_name = 'agent_time_{}@localhost:{}'.format(port, port)
+        time_agent = TimeAgent(AID(name=time_agent_name))
+        agents.append(time_agent)
+
+        clock_agent_name = 'agent_clock_{}@localhost:{}'.format(port - 10000, port - 10000)
+        clock_agent = ClientAgent(AID(name=clock_agent_name), time_agent_name,c)
+        agents.append(clock_agent)
+
+        c += 500
+
 
     x = threading.Thread(target=agentsexec)
     x.start()
     app = QApplication([])
-    gui = Gui(agents)
-    gui.show()
+    # gui = Gui(agents)
+    # gui.show()
     app.exec()
     x.join()
 
