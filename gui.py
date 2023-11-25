@@ -11,7 +11,6 @@ class Gui(QFrame):
         self.background = QPixmap("images/background.png")
         self.setFixedSize(self.background.width(), self.background.height())
         print(self.background.width(),self.background.height())
-        # self.setFixedSize(1200, 1080)
 
 
     def paintEvent(self, _: QPaintEvent) -> None:
@@ -20,31 +19,25 @@ class Gui(QFrame):
         for host in self.agent:
             if(host.type == 'client'):
                 if(host.isEating == True ):
-
+                    #SI EL AGENTE ES DE TIPO CLIENTE Y ESTA COMIENDO SE DIBUJA SU SPRITE COMIENDO
                     sprite = QPixmap(host.eatingSprite)
                     own_sprite = sprite.scaled(40,80)
                     painter.drawPixmap(host.x,host.y,own_sprite)
                 else:
+                    #SI EL AGENTE ES DE TIPO CLIENTE Y NO ESTA COMIENDO SE DIBUJA SU SPRITE DE LIBRE
                     sprite = QPixmap(host.sprite)
                     own_sprite = sprite.scaled(40,80)
                     painter.drawPixmap(host.x,host.y,own_sprite)
             else:
                 if(host.busy):
+                    #SI EL AGENTE ES DE TIPO DRON Y ESTA ENVIANDO UN PEDIDO SE DIBUJA SU SPRITE OCUPADO
                     sprite = QPixmap(host.busySprite)
                     own_sprite = sprite.scaled(40,80)
                     painter.drawPixmap(host.x,host.y,own_sprite)
                 else:
+                    #SI EL AGENTE ES DE TIPO DRON Y ESTA LIBRE SE DIBUJA SU SPRITE LIBRE
                     sprite = QPixmap(host.sprite)
                     own_sprite = sprite.scaled(40,80)
                     painter.drawPixmap(host.x,host.y,own_sprite)
-            # client=host.client
-            # print(client.askingForDeliver)
-            # own_sprite = self.sprites[client.spriteId].scaled(client.size,client.size//2)
-            #    print(client.x, client.y)
-            # if(client.askingForDeliver):
-                # painter.fillRect(client.x-10,client.y-20,120,30,"#abb2bf")
-                # painter.drawText(client.x-10,client.y,"Necesito un pedido")
-            # elif(client.eatingTime>0):
-                # painter.fillRect(client.x-10,client.y-20,120,30,"#abb2bf")
-                # painter.drawText(client.x-10,client.y,"Estoy comiendo!")
+
 
