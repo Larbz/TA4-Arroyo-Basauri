@@ -77,8 +77,7 @@ class ClockAgent(Agent):
         message.set_content('time')
 
         self.comport_request = CompRequest2(self, message)
-        self.comport_temp = ComportTemporal(self, 8.0, message)
-
+        self.comport_temp = ComportTemporal(self, .2, message)
         self.behaviours.append(self.comport_request)
         self.behaviours.append(self.comport_temp)
 
@@ -186,7 +185,7 @@ class HostAgent(Agent):
         message.set_content('time')
 
         self.comport_request = CompRequest2(self, message)
-        self.comport_temp = ComportTemporal(self, 8.0, message)
+        self.comport_temp = ComportTemporal(self, 0.2, message)
 
         self.behaviours.append(self.comport_request)
         self.behaviours.append(self.comport_temp)

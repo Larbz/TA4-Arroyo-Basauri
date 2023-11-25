@@ -14,6 +14,7 @@ from pade.behaviours.protocols import FipaRequestProtocol
 from pade.acl.messages import ACLMessage
 import random 
 from PySide6.QtGui import QColor
+from collections import deque
 
 class CompRequest(FipaRequestProtocol):
     """FIPA Request Behaviour of the Time agent.
@@ -25,12 +26,22 @@ class CompRequest(FipaRequestProtocol):
 
     def handle_request(self, message):
         super(CompRequest, self).handle_request(message)
-        display_message(self.agent.aid.localname, message.content)
-        now = datetime.now()
-        reply = message.create_reply()
-        reply.set_performative(ACLMessage.INFORM)
-        reply.set_content(now.strftime('%d/%m/%Y - %H:%M:%S'))
-        self.agent.send(reply)
+        # print(message)
+        print(self.agent.busy)
+        if(self.agent.busy == False):
+            display_message(self.agent.aid.localname, "Se envia el pedido del cliente {}".format(message.content))
+            self.agent.busy = True
+            self.agent.deliver()
+
+        else:
+            # print("We delivering")
+            self.agent.deliver()
+
+        # print(message)
+        # reply = message.create_reply()
+        # reply.set_performative(ACLMessage.INFORM)
+        # reply.set_content("baja")
+        # self.agent.send(reply)
 
 
 class CompRequest2(FipaRequestProtocol):
@@ -41,8 +52,8 @@ class CompRequest2(FipaRequestProtocol):
                                            message=message,
                                            is_initiator=True)
 
-    def handle_inform(self, message):
-        display_message(self.agent.aid.localname, self.agent.color)
+    # def handle_inform(self, message):
+    #     display_message(self.agent.aid.localname, message)
 
 
 class ComportTemporal(TimedBehaviour):
@@ -53,63 +64,52 @@ class ComportTemporal(TimedBehaviour):
 
     def on_time(self):
         super(ComportTemporal, self).on_time()
-        self.message.set_content(self.agent.speed)
-        self.agent.send(self.message)
+        if(len(droneDeque)!=0):
+            # try:
+                name = droneDeque[0].get('name')
+                self.agent.createMessage(name)                
+                self.agent.changingDeliverState()
+                droneDeque.popleft()
+            # except:
+                # pass
+        # else:
+        #     print("Todos los drones estan ocupados")
+        #     print(len(droneList))
+        #     print(len(droneDeque))
+        elif(self.agent.received == False):
+            if(self.agent.deliveryName!= None):
+                self.agent.createMessage(self.agent.deliveryName)              
+            else:
+                pass  
 
-class TimeAgent(Agent):
+
+class DroneAgent(Agent):
     """Class that defines the Time agent."""
-    def __init__(self, aid):
-        super(TimeAgent, self).__init__(aid=aid, debug=False)
-
+    def __init__(self, aid,id):
+        super(DroneAgent, self).__init__(aid=aid, debug=False)
+        self.busy = False
         self.comport_request = CompRequest(self)
-
+        self.delivery_Time = 15
         self.behaviours.append(self.comport_request)
+        self.id = id
+    def deliver(self):
+        if(self.busy == False):
+            self.busy = True
+            # print("Entregando")
+        else:
+            print("Entregando")
+            self.delivery_Time -=2
+            if(self.delivery_Time <=0):
+                self.busy = False
+                self.delivery_Time = 15
+                print("Delivery completed")
+                droneDeque.append(droneList[self.id])
+                # print(self.id)
+                # print(type(self.id))
 
-
-class ClockAgent(Agent):
-    """Class thet defines the Clock agent."""
-    def __init__(self, aid, time_agent_name):
-        super(ClockAgent, self).__init__(aid=aid)
-
-        # message that requests time of Time agent.
-        message = ACLMessage(ACLMessage.REQUEST)
-        message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
-        message.add_receiver(AID(name=time_agent_name))
-        message.set_content('time')
-
-        self.comport_request = CompRequest2(self, message)
-        self.comport_temp = ComportTemporal(self, .2, message)
-
-        self.behaviours.append(self.comport_request)
-        self.behaviours.append(self.comport_temp)
-
-
-class MyTimedBehaviour(TimedBehaviour):
-    def __init__(self, agent, time):
-        super(MyTimedBehaviour, self).__init__(agent, time)
-        self.agent = agent
-
-    def on_time(self):
-        super(MyTimedBehaviour, self).on_time()
-  
-        self.agent.client.changingDeliverState()
-
-        
-
-        gui.update()
-
-class YourTimedBehaviour(TimedBehaviour):
-    def __init__(self, agent, time):
-        super(YourTimedBehaviour, self).__init__(agent, time)
-        self.agent=agent
-
-
-    def on_time(self):
-        super(YourTimedBehaviour, self).on_time()
-        Global.x_center += 3
 
 class ClientAgent(Agent):
-    def __init__(self,aid,time_agent_name,coords):
+    def __init__(self,aid):
         super(ClientAgent, self).__init__(aid=aid)
         # self.x = coords[0]
         # self.y = coords[1]
@@ -124,82 +124,58 @@ class ClientAgent(Agent):
         self.deliveryTime = None
         self.comport_request = CompRequest(self)
         self.behaviours.append(self.comport_request)
-        message = ACLMessage(ACLMessage.REQUEST)
-        message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
-        message.add_receiver(AID(name=time_agent_name))
-        message.set_content('time')
-
-        self.comport_request = CompRequest2(self, message)
-        self.comport_temp = ComportTemporal(self, 0.2, message)
+        self.message = None
+        self.deliveryName = None
+        self.comport_request = CompRequest2(self, self.message)
+        self.name = self.aid.name
+        # Originalmente usamos 0.2
+        self.comport_temp = ComportTemporal(self, 2, self.message)
 
         self.behaviours.append(self.comport_request)
         self.behaviours.append(self.comport_temp)
 
+    def createMessage(self,destinateTo):
+        self.deliveryName = destinateTo
+        # print("Do i get here")
+        # print(destinateTo)
+        self.message = ACLMessage(ACLMessage.REQUEST)
+        self.message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
+        self.message.add_receiver(AID(name=destinateTo))
+        # print(destinateTo)
+        # self.message.set_content('time')
+        # print(self.aid.localname)
+        self.message.set_content(self.name)
+        self.send(self.message)
+        # droneDeque.popleft()
 
 
+
+    # CORREGIR TIEMPOS DE DELIVERY TIME EN CLASES CLIENT!
  
 
     def changingDeliverState(self):
-        if(self.received == False):
-            if(self.askingForDeliver == False):
-                if(random.randint(0,1) == 1):
-                    self.askingForDeliver = True
-                    self.deliveryTime = random.randint(3,10)
-                    self.received=False
-            else:
-                if(self.deliveryTime<=0):
-                    self.askingForDeliver = False
-                    self.eatingTime = random.randint(10,20)
-                    self.received = True
+        # if(droneDeque.count != 0):
+            if(self.received == False):
+                if(self.askingForDeliver == False):
+                    if(random.randint(0,1) == 1):
+                        self.askingForDeliver = True
+                        self.deliveryTime = random.randint(3,10)
+                        self.received=False
                 else:
-                    self.deliveryTime-=0.2
-            
-        else:
-            if(self.eatingTime<=0):
-                self.received=False
-            self.eatingTime-=0.2
+                    if(self.deliveryTime<=0):
+                        self.askingForDeliver = False
+                        self.eatingTime = random.randint(10,20)
+                        self.received = True
+                    else:
+                        self.deliveryTime-=0.2
+                
+            else:
+                if(self.eatingTime<=0):
+                    self.received=False
+                self.eatingTime-=0.2
+            # print("executing")
 
 
-
-
-
-# class HostAgent(Agent):
-#     gui = None
-#     client=None
-#     houses_coordenates = [
-#         [400,80],
-#         [530,90],
-#         [190,380],
-#         [58,530],
-#         [130,670],
-#         [490,700],
-#         [410,480],
-#         [1150,910]
-#     ]
-    
-#     enabled = False
-
-#     def __init__(self, aid,c,port):
-#         super(HostAgent, 
-#               self).__init__(aid=aid, debug=False)
-#         Global.x_center = 0
-#         client_agent_name = 'client_agent_{}@localhost:{}'.format(port-10000, port-10000)
-#         self.client = ClientAgent(AID(name=client_agent_name),self.houses_coordenates[c])
-#         mytimed = MyTimedBehaviour(self, .2)
-#         yourtimed = YourTimedBehaviour(self, 2)
-#         self.behaviours.append(mytimed)
-#         self.behaviours.append(yourtimed)
-#         print(client_agent_name)
-#         message = ACLMessage(ACLMessage.REQUEST)
-#         message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
-#         message.add_receiver(AID(name=client_agent_name))
-#         message.set_content('time')
-
-#         self.comport_request = CompRequest2(self, message)
-#         self.comport_temp = ComportTemporal(self, 8.0, message)
-
-#         self.behaviours.append(self.comport_request)
-#         self.behaviours.append(self.comport_temp)
 
 
 
@@ -208,7 +184,9 @@ def agentsexec():
 
 if __name__ == '__main__':
     agents = list()
-
+    droneList = list()
+    droneDeque = deque()
+    clientList=list()
     c=0
     # for i in range(8):
     #     port = int(sys.argv[1]) + c
@@ -216,18 +194,60 @@ if __name__ == '__main__':
     #     host_agent = HostAgent(AID(name=host_agent_name),c,port)
     #     agents.append(host_agent)
     #     c += 1
-
-    for i in range(1):
+    dron_id=0
+    for i in range(10):
         port = int(sys.argv[1]) + c
-        time_agent_name = 'agent_time_{}@localhost:{}'.format(port, port)
-        time_agent = TimeAgent(AID(name=time_agent_name))
-        agents.append(time_agent)
+        time_agent_name = 'agent_drone_{}@localhost:{}'.format(port, port)
 
-        clock_agent_name = 'agent_clock_{}@localhost:{}'.format(port - 10000, port - 10000)
-        clock_agent = ClientAgent(AID(name=clock_agent_name), time_agent_name,c)
+        # inform
+        clock_agent_name = 'agent_client_{}@localhost:{}'.format(port - 10000, port - 10000)
+        clock_agent = ClientAgent(AID(name=clock_agent_name))
         agents.append(clock_agent)
 
+        clientList.append({
+            'name':clock_agent_name,
+            'agent':clock_agent
+        })
+
+
+        # inform
+        clock_agent_name2 = 'agent_client_{}@localhost:{}'.format(port - 9999, port - 9999)
+        clock_agent2 = ClientAgent(AID(name=clock_agent_name2))
+        agents.append(clock_agent2)
+
+        clientList.append({
+            'name':clock_agent_name2,
+            'agent':clock_agent2
+        })
+
+
+        # inform
+        clock_agent_name3 = 'agent_client_{}@localhost:{}'.format(port - 9998, port - 9998)
+        clock_agent3 = ClientAgent(AID(name=clock_agent_name3))
+        agents.append(clock_agent3)
+
+        clientList.append({
+            'name':clock_agent_name3,
+            'agent':clock_agent3
+        })
+        
+        # request
+        # time_agent_name = 'agent_drone_{}@localhost:{}'.format(port, port)
+        time_agent = DroneAgent(AID(name=time_agent_name),dron_id)
+        agents.append(time_agent)
+        droneDeque.append({
+            'name':time_agent_name,
+            'agent': time_agent,
+        })
+        droneList.append({
+            'name':time_agent_name,
+            'agent': time_agent
+        })
+
+        # print(droneDeque[0].get('name'))
         c += 500
+        dron_id+=1
+
 
 
     x = threading.Thread(target=agentsexec)
